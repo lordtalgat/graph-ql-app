@@ -6,7 +6,7 @@ sbt run
 
 SBT will automatically compile and restart the server whenever the source code changes.
 
-After the server is started you can run queries interactively using [GraphiQL](https://github.com/graphql/graphiql) by opening [http://localhost:8080](http://localhost:8080) in a browser.
+After the server is started you can run queries interactively using by opening [http://localhost:8080](http://localhost:8080) in a browser.
 
 Use different PORT if you've changed it int he configuration.
 
