@@ -1,6 +1,8 @@
 package kz.talgat.graphql
 
+import akka.http.scaladsl.model.DateTime
 import slick.jdbc.H2Profile.api._
+import java.sql.Timestamp
 
 import scala.concurrent.duration._
 import scala.concurrent.Await
@@ -10,13 +12,19 @@ import kz.talgat.graphql.models._
 
 object DBSchema {
 
+  implicit val dateTimeColumnType = MappedColumnType.base[DateTime,Timestamp](
+    dt => new Timestamp(dt.clicks),
+    ts => DateTime(ts.getTime)
+  )
+
   class LinksTable(tag: Tag) extends Table[Link](tag, "LINKS"){
 
     def id = column[Int]("ID", O.PrimaryKey, O.AutoInc)
     def url = column[String]("URL")
     def description = column[String]("DESCRIPTION")
+    def createdAt = column[DateTime]("createdAt")
 
-    def * = (id, url, description).mapTo[Link]
+    def * = (id, url, description, createdAt).mapTo[Link]
 
   }
 
@@ -26,9 +34,9 @@ object DBSchema {
     Links.schema.create,
 
     Links forceInsertAll Seq(
-      Link(1, "http://mail.ru", "Email server address"),
-      Link(2, "http://google.com", "Official Google web page"),
-      Link(3, "https://speedtest.kz", "Internet speed test page")
+      Link(1, "http://mail.ru", "Email server address", DateTime(2025,1,12)),
+      Link(2, "http://google.com", "Official Google web page", DateTime(2025,1,13)),
+      Link(3, "https://speedtest.kz", "Internet speed test page", DateTime(2025,1,14))
     )
   )
 
