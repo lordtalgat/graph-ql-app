@@ -2,8 +2,8 @@ package kz.talgat.graphql
 
 import akka.http.scaladsl.model.DateTime
 import slick.jdbc.H2Profile.api._
-import java.sql.Timestamp
 
+import java.sql.Timestamp
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import scala.language.postfixOps
@@ -20,41 +20,36 @@ object DBSchema {
   class LinksTable(tag: Tag) extends Table[Link](tag, "LINKS") {
 
     def id = column[Int]("ID", O.PrimaryKey, O.AutoInc)
-
     def url = column[String]("URL")
-
     def description = column[String]("DESCRIPTION")
+    def postedBy = column[Int]("USER_ID")
+    def createdAt = column[DateTime]("CREATED_AT")
 
-    def createdAt = column[DateTime]("CREATEDAT")
+    def * = (id, url, description, postedBy, createdAt).mapTo[Link]
 
-    def * = (id, url, description, createdAt).mapTo[Link]
-
+    def postedByFK = foreignKey("postedBy_FK", postedBy, Users)(_.id)
   }
 
   class UsersTable(tag: Tag) extends Table[User](tag, "USERS") {
     def id = column[Int]("ID", O.PrimaryKey, O.AutoInc)
-
     def name = column[String]("NAME")
-
     def email = column[String]("EMAIL")
-
     def password = column[String]("PASSWORD")
-
-    def createdAt = column[DateTime]("CREATEDAT")
+    def createdAt = column[DateTime]("CREATED_AT")
 
     def * = (id, name, email, password, createdAt).mapTo[User]
   }
 
   class VotesTable(tag: Tag) extends Table[Vote](tag, "VOTES") {
     def id = column[Int]("ID", O.PrimaryKey, O.AutoInc)
+    def userId = column[Int]("USER_ID")
+    def linkId = column[Int]("LINK_ID")
+    def createdAt = column[DateTime]("CREATED_AT")
 
-    def createdAt = column[DateTime]("CREATEDAT")
+    def * = (id, userId, linkId, createdAt).mapTo[Vote]
 
-    def userId = column[Int]("USERID")
-
-    def linkId = column[Int]("LINKID")
-
-    def * = (id, createdAt, userId, linkId).mapTo[Vote]
+    def userFK = foreignKey("user_FK", userId, Users)(_.id)
+    def linkFK = foreignKey("link_FK", linkId, Links)(_.id)
   }
 
   val Links = TableQuery[LinksTable]
@@ -67,9 +62,9 @@ object DBSchema {
     Votes.schema.create,
 
     Links forceInsertAll Seq(
-      Link(1, "http://mail.ru", "Email server address", DateTime(2025, 1, 12)),
-      Link(2, "http://google.com", "Official Google web page", DateTime(2025, 1, 13)),
-      Link(3, "https://speedtest.kz", "Internet speed test page", DateTime(2025, 1, 14))
+      Link(1, "http://mail.ru", "Email server address", 1, DateTime(2025, 1, 12)),
+      Link(2, "http://google.com", "Official Google web page", 1,  DateTime(2025, 1, 13)),
+      Link(3, "https://speedtest.kz", "Internet speed test page", 2, DateTime(2025, 1, 14))
     ),
     Users forceInsertAll Seq(
       User(1, "Talgat", "talgat@mail.com", "password"),
