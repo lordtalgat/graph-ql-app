@@ -57,18 +57,24 @@ object DBSchema {
   val Votes = TableQuery[VotesTable]
 
   val databaseSetup = DBIO.seq(
-    Links.schema.create,
+    // Creation order matters: LinksTable and VotesTable each declare a
+    // foreignKey(...)(Users), so the USERS table (and, for Votes, LINKS too)
+    // must exist before Slick's ALTER TABLE ... ADD CONSTRAINT for that FK
+    // runs -- which happens as part of that table's own `.schema.create`.
     Users.schema.create,
+    Links.schema.create,
     Votes.schema.create,
 
+    // Insert order follows the same dependency: a row can't reference a
+    // not-yet-inserted id in another table once the FK constraint is live.
+    Users forceInsertAll Seq(
+      User(1, "Talgat", "talgat@mail.com", "password"),
+      User(2, "Shakirov", "shakirov@mail.com", "password")
+    ),
     Links forceInsertAll Seq(
       Link(1, "http://mail.ru", "Email server address", 1, DateTime(2025, 1, 12)),
       Link(2, "http://google.com", "Official Google web page", 1,  DateTime(2025, 1, 13)),
       Link(3, "https://speedtest.kz", "Internet speed test page", 2, DateTime(2025, 1, 14))
-    ),
-    Users forceInsertAll Seq(
-      User(1, "Talgat", "talgat@mail.com", "password"),
-      User(2, "Shakirov", "shakirov@mail.com", "password")
     ),
     Votes forceInsertAll Seq(
       Vote(id = 1, userId = 1, linkId = 1),
