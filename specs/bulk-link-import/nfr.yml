@@ -1,0 +1,32 @@
+# Machine-readable NFR budget for specs/bulk-link-import/spec.md §6.
+# One metric per entry; for the K 5.D.3-style CI gate to diff spec vs. implementation.
+metrics:
+  - name: p95_latency_50_url_batch
+    target: 800
+    unit: ms
+    measurement_method: "Load test importLinks with a 50-URL batch per request; take P95 of end-to-end response time."
+
+  - name: p99_latency_50_url_batch
+    target: 1500
+    unit: ms
+    measurement_method: "Load test importLinks with a 50-URL batch per request; take P99 of end-to-end response time."
+
+  - name: max_batch_size
+    target: 200
+    unit: urls_per_request
+    measurement_method: "Submit a 201-URL batch; assert the request is rejected wholesale with BATCH_TOO_LARGE (AC4)."
+
+  - name: max_request_payload
+    target: 64
+    unit: KB
+    measurement_method: "Measure the raw HTTP request body size at the point the GraphQL endpoint accepts/rejects it."
+
+  - name: max_url_length
+    target: 2048
+    unit: characters
+    measurement_method: "Submit a single URL entry of exactly 2049 characters; assert it is rejected per-entry with invalid_url."
+
+  - name: sustained_concurrent_request_rate
+    target: 20
+    unit: req_per_sec
+    measurement_method: "Sustain 20 concurrent importLinks requests/sec for 60s; P95 latency must stay within the p95_latency_50_url_batch target above."
