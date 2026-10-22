@@ -31,7 +31,7 @@ The actual behavior change: `createVote` now requires authentication and derives
 - Independent tests: [CreateVoteIndependentSpec.scala](https://github.com/lordtalgat/graph-ql-app/blob/task-T1-createvote-auth/src/test/scala/kz/talgat/graphql/CreateVoteIndependentSpec.scala)
 - Review (seven lenses + adversarial pass): [review.md](https://github.com/lordtalgat/graph-ql-app/blob/task-T1-createvote-auth/reviews/T1/review.md) (also [risk-register.md](https://github.com/lordtalgat/graph-ql-app/blob/task-T1-createvote-auth/reviews/T1/risk-register.md))
 - Architectural debate, if any: none was conducted for this change.
-- Replay packet, if any: none was produced for this change.
+- Replay packet, if any: [docs/replay/T1-dbschema-fix-packet.md](https://github.com/lordtalgat/graph-ql-app/blob/task-T1-createvote-auth/docs/replay/T1-dbschema-fix-packet.md) — replays the unauthorized-scope-expansion incident (Known limitation #2 above) in full.
 - Follow-up ticket opened by this PR's review: [DEFERRED-session-persistence.md](https://github.com/lordtalgat/graph-ql-app/blob/task-T1-createvote-auth/changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md)
 
 ## Redaction pass
