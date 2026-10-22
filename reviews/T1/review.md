@@ -6,7 +6,7 @@ Branch: `task-T1-createvote-auth`. Diff reviewed: `src/main/scala/kz/talgat/grap
 
 **Tier: B**, same caveat as prior isolated passes in this project: a fresh subagent with no conversation/memory carryover, instructed not to use any tools or read any files — self-reported "Tool calls made: none." Loaded once with all four artefacts (diff, delta, the independent test file, the test pass/fail record, including its collision history) and ran all seven lens passes plus the verdict within that one retained-context session, per the kata's "load once, re-issue lens name/question each pass" guidance — not seven separate fresh agents, since the isolation requirement is *from the implementation session*, not from the review's own earlier lenses. Did not load: the plan/tasks documents, this session's prior transcript, or the repository on disk.
 
-## Verdict: **Request changes**
+## Verdict: **Request changes** (unchanged in category after the adversarial pass, but now more heavily justified — see bottom of file)
 
 Driven by three major findings, not any single blocker:
 
@@ -14,6 +14,8 @@ Driven by three major findings, not any single blocker:
 - **Lens 2 (major)**: the two new spec files share one fixed in-memory H2 DB name; a full `sbt test` run already aborts because of it (confirmed in the pass/fail record, not hypothetical).
 
 Per the stated rule, ≥2 majors is sufficient to request changes on its own; here there are 3 across lenses 1–3. The core `GraphQLSchema.scala` production change is correctly scoped and well-covered (lenses 3/4), so the request is narrow: justify-or-split the `DBSchema.scala` change, and fix the cross-suite DB collision so `sbt test` passes as a whole. Minor/nit findings below are documented, not blocking.
+
+**Update after the adversarial pass (see bottom of file):** the verdict stays **Request changes** — there is no more severe category in this scheme — but it is no longer only about test/scope hygiene. The adversarial pass found a credential-logging exposure severe enough to call **blocker-grade on its own merits** (deferred rather than blocking only because it is a pre-existing, already-tracked architectural gap this diff extends rather than introduces) and a genuine correctness regression (stale-identity vote misattribution) that both trace back to the same root cause, now captured in [DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md).
 
 ---
 
@@ -84,3 +86,45 @@ No finding for this lens — diff did not exercise this concern. The change tigh
   *Fix: add a test that triggers an `AuthenticationException` (bad login credentials) to justify the branch, or drop it until needed — low priority, since it mirrors the real `GraphQLServer.ErrorHandler` convention it was modeled on.*
 
 No other findings for this lens — the production change (`GraphQLSchema.scala`) is minimal: one argument removed, one tag added, one resolver line changed, no new abstractions introduced.
+
+---
+
+## Adversarial pass
+
+**Model used:** Claude Opus (5.5). Honesty note on isolation: the kata recommends Tier A with a genuinely different model *family* (e.g. Claude reviewed by GPT). That wasn't available in this environment — the only model choices reachable here are within the Claude family (Sonnet/Opus/Haiku/Fable). Opus was picked as the most capability-different option available, run as a fresh, no-context subagent (no conversation/memory, no tool use, self-reported "Tool calls made: none") — isolated from the implementation and from the seven-lens pass, but not cross-family. Loaded: the diff, a summary of the delta, the independent test list (by name + assertion, to exclude), and a summary of the seven-lens findings (to avoid repeats) — not the implementation transcript, not the plan.
+
+### Pre-mortem
+
+Five causes were generated, ordered most → least obvious:
+1. *(skipped, as instructed — the delta removed `userId` on purpose; clients still sending it is the expected, mitigated failure.)*
+2. The "login now, vote later" two-request client flow fails 100% of the time (GraphQLSchema.scala:151–152) — already covered by [DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md) and the delta's own Risk note.
+3. **Credentials leak into logs (picked as strongest).**
+4. One GraphQL document can brute-force passwords and stuff votes via aliased fields (no query-complexity/alias limiting) — real, but a pre-existing property of this GraphQL server in general, not introduced by this diff; not picked as the headline finding because it isn't new here.
+5. Seeded `forceInsertAll` ids colliding with real ids after a hypothetical H2 2.x upgrade — real but speculative (depends on a future, unplanned dependency bump); lowest confidence of the five.
+
+**Finding (pre-mortem) — credentials leak into logs**
+- **Trigger:** `createVote` being `Authorized` (GraphQLSchema.scala:151) with no durable session means every legitimate vote must embed `login(email, password)` in the same document. Any layer that logs request URLs, query text, or failing-query error context (including the raw FK-violation path noted in Lens 5) writes a plaintext password to a log.
+- **Blast radius:** every voting user's password, for as long as logs are retained, readable by anyone with log access; passwords are stored in plaintext in this app already, so one leaked log line is a full, silent account compromise — and a compliance incident, not just a bug.
+- **Mitigation:** token-based auth (`login` returns a signed token; `GraphQLServer` reads it from a header per request) removes the need to send credentials with every mutation. Stopgap: redact `password` from any logged query/variables and never log GraphQL query text verbatim.
+- **Resolution: defer with ticket** — [changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md) ("Consequence 1"). Not "fix now": the real fix touches `MyContext.scala`/`GraphQLServer.scala`/`Server.scala`, all explicitly outside this delta's declared scope — the same scope boundary Lens 1/3 already flagged for the smaller `DBSchema.scala` edit. Not "accept with documented risk" silently: this is severe enough (plaintext credential exposure) that it needs a tracked, named owner-of-attention, not just a line in a provenance block. Re-visit condition: before this mutation pattern is exposed to any real client.
+
+### Edge-case hunter
+
+Three-plus candidates were generated, excluding anything the 5 independent tests already cover:
+- **A.** `createVote` placed before `login` in the same document — rejected even with valid credentials, since mutation fields run in document order. (GraphQLSchema.scala:151–152.)
+- **B.** A client migrating incrementally that stops passing a `userId` *value* but still *declares* the now-unused `$u` variable hits a different validation error (`NoUnusedVariables`) than test 4's inline-literal case. (GraphQLSchema.scala:131, :150.)
+- **C.** `login` and `createVote` placed in two different named operations of one document, executed via `operationName`, so the context update from the unexecuted operation never happens.
+- **D. (picked as strongest)** A document with two `login` fields where the second fails — see below.
+
+**Finding (edge-case) — stale identity survives a failed second login**
+- **Input shape:**
+  ```graphql
+  mutation {
+    a: login(email: "talgat@mail.com", password: "password") { id }
+    b: login(email: "shakirov@mail.com", password: "WRONG") { id }
+    createVote(linkId: 3) { user { id } }
+  }
+  ```
+- **Observable failure:** `a` succeeds and sets `currentUser = Some(user1)`. `b` throws `AuthenticationException`, which becomes a null field + error but never reaches the context-update step — so the context is still `user1` when `createVote` resolves (GraphQLSchema.scala:152, `c.ctx.currentUser.get.id`). The vote is recorded against user 1, not the user 2 the caller evidently intended partway through the document. The response looks like a partial success (one field errored) but silently misattributes the side effect — a narrower recurrence of exactly the behaviour the delta's REMOVED section says is gone ("the ability for user A to cast a vote attributed to a different user B's id"), reachable by document shape rather than by malice.
+- **Mitigation:** have a failed `login` explicitly clear `currentUser` (update the context to `None` on the error path, not just leave it untouched), or add schema/query validation that rejects a document containing more than one `login` field.
+- **Resolution: defer with ticket** — same ticket, [DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md) ("Consequence 2"). Not "fix now": the fix lives in `login`'s resolver / `MyContext`, both outside this delta's declared scope, and the root cause is identical to Finding 1 (no durable session, only fragile same-document context propagation) — bundling both into one scoped follow-up is more coherent than patching this one symptom in isolation. Not "accept silently": it directly undermines a guarantee the delta explicitly claims to provide (REMOVED: vote-as-another-user), so it needs to be named, not just absorbed.

@@ -1,0 +1,8 @@
+# Risk register: T1 (scope-createvote-to-session-user)
+
+Appended each time an adversarial pass runs against this task/PR. See [review.md](review.md) for the full write-up each row summarizes.
+
+| cause | trigger | blast_radius | mitigation | resolution | owner | revisit_date |
+|---|---|---|---|---|---|---|
+| Credentials leak into logs because every vote must carry `login(email,password)` in the same document (no durable session) | Any request/proxy/APM/error logging layer that logs raw query text or URLs | Every voting user's password; full account compromise per leaked log line; compliance incident | Token-based auth (login returns a signed token; server reads it per request instead of requiring inline credentials) | defer with ticket | unassigned | before this mutation pattern is exposed to any real client (see [DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md)) |
+| A failed second `login` field in one document doesn't clear `currentUser`, so a later mutation runs under the previous, unintended identity | A document with two `login` fields where the second one fails (wrong password, shared device, cached document) | The specific user whose intended identity switch silently failed to take effect; their action (e.g. a vote) is attributed to the previous session's user instead | Clear `currentUser` on a failed `login`, or reject documents containing more than one `login` field via query validation | defer with ticket | unassigned | before this mutation pattern is exposed to any real client (see [DEFERRED-session-persistence.md](../../changes/scope-createvote-to-session-user/DEFERRED-session-persistence.md)) |
