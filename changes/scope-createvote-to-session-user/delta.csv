@@ -1,0 +1,9 @@
+change_type,summary,caller_visible_effect,severity
+ADDED,Authorized tag added to createVote,Unauthenticated callers now get AuthorizationException instead of a created Vote,high
+ADDED,Voter identity derived from ctx.currentUser instead of client input,Server no longer trusts a caller-supplied userId as the vote's attribution,medium
+MODIFIED,createVote argument list loses userId (now linkId only),Existing calls passing userId now fail GraphQL argument validation immediately,high
+MODIFIED,Resolver sources userId from ctx.currentUser instead of c.arg(UserIdArg),No visible response-shape change on success; only the trust boundary changes,low
+REMOVED,userId argument accepted by createVote,Callers passing userId get an Unknown argument error with no deprecation window,high
+REMOVED,Unauthenticated vote creation,Any caller that never logs in can no longer vote at all,high
+REMOVED,Ability to vote as an explicit different userId,Callers can no longer attribute a vote to a user other than themselves,medium
+REMOVED,Practical reachability of createVote across a normal two-request login-then-act client flow (missed by first draft; see audit),Only a single combined login+createVote document still works -- any client that logs in once and calls createVote later in a separate request always gets AuthorizationException,critical
