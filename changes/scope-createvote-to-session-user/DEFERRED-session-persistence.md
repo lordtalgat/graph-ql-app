@@ -2,6 +2,8 @@
 
 Created by: T6 (planned in [tasks.md](tasks.md)), populated now because the adversarial pass on T1 (see [reviews/T1/review.md](../../reviews/T1/review.md), "## Adversarial pass") turned the original architectural gap into two concrete, severity-rated findings.
 
+**Architectural decision available:** the JWT-vs-server-side-sessions fork for the real fix below has been debated — see [docs/decisions/session-auth-debate.md](../../docs/decisions/session-auth-debate.md). Decision: server-side sessions, with named reversal-evidence.
+
 ## The gap
 
 `GraphQLServer.scala` builds a fresh, session-less `MyContext(dao)` for every HTTP `POST /graphql` request. `login`'s `UpdateCtx` only updates the context for *sibling fields resolved later in the same GraphQL document* — it has no effect across requests, because nothing (no cookie, token, or session store) persists `currentUser` anywhere in this app. The only way an `Authorized` field (`createLink`, and now `createVote`) can ever succeed for a real caller is a single document containing both `login` and the mutation together.
